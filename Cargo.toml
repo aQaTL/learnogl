@@ -1,0 +1,10 @@
+[package]
+name = "learnogl"
+version = "0.1.0"
+authors = ["aQaTL <mmsoltys@outlook.com>"]
+edition = "2018"
+
+[dependencies]
+glium = "0.23.0"
+image = "0.21"
+nalgebra-glm = "0.4"
