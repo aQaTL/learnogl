@@ -58,9 +58,7 @@ fn main() {
 	.unwrap();
 
 	//let image = image::open("images/cyberpunk_2077_car.jpg")
-	let image = image::open("images/box.png")
-		.unwrap()
-		.to_rgba();
+	let image = image::open("images/box.png").unwrap().to_rgba();
 	let image_dimensions = image.dimensions();
 	let image = RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
 	let texture = SrgbTexture2d::new(&display, image).unwrap();
@@ -78,7 +76,6 @@ fn main() {
 		[-0.2, 0.4, 0.0, 1.0],
 	];
 	*/
-	let mut rotation: f32 = 0.0;
 
 	let mut keys: [bool; 100] = [false; 100];
 
@@ -114,18 +111,23 @@ fn main() {
 			_ => (),
 		});
 
-		rotation += 0.1 * delta_time;
-
 		// scaling -> rotation -> translation
 
-		let mut transform = glm::Mat4::identity();
-		transform = glm::translate(&transform, &glm::Vec3::new(0.5, -0.5, 0.0));
-		transform = glm::rotate(
-			&transform,
-			rotation,
-			&glm::Vec3::new(0.0, 0.0, 1.0),
+		let mut model = glm::Mat4::identity();
+		model = glm::rotate(&model, radians(-55.0), &glm::Vec3::new(1.0, 0.0, 0.0));
+
+		let mut view = glm::Mat4::identity();
+		view = glm::translate(&view, &glm::Vec3::new(0.0, 0.0, -3.0));
+
+		let window_size = display.gl_window().window().get_inner_size().unwrap();
+		let projection = glm::perspective(
+			radians(45.0),
+			(window_size.width / window_size.height) as f32,
+			0.1,
+			100.0,
 		);
-		transform = glm::scale(&transform, &glm::Vec3::new(0.5, 0.5, 0.5));
+
+		let transform = projection * view * model;
 
 		let mut frame = display.draw();
 
