@@ -1,11 +1,11 @@
 #![feature(const_fn)]
 
-use glium::glutin::{VirtualKeyCode::*, *};
+use glium::glutin::*;
 use glium::index::PrimitiveType;
 use glium::texture::{RawImage2d, SrgbTexture2d};
 use glium::*;
 use nalgebra_glm as glm;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 
 fn main() {
 	let mut events_loop = glium::glutin::EventsLoop::new();
@@ -18,6 +18,14 @@ fn main() {
 		.with_vsync(true);
 
 	let display = glium::Display::new(window, context, &events_loop).unwrap();
+	{
+		let window = display.gl_window();
+		let window = window.window();
+		window.hide_cursor(true);
+		if let Err(err) = window.grab_cursor(true) {
+			println!("Failed to grab the cursor: {}", err);
+		}
+	}
 
 	println!("{:?}", display.get_opengl_version());
 	println!("{:?}", display.get_opengl_vendor_string());
@@ -219,8 +227,6 @@ fn main() {
 		.magnify_filter(uniforms::MagnifySamplerFilter::Nearest)
 		.minify_filter(uniforms::MinifySamplerFilter::Nearest);
 
-	let mut pivot = 0.0;
-
 	let cube_positions = [
 		glm::Vec3::new(0.0, 0.0, 0.0),
 		glm::Vec3::new(2.0, 5.0, -15.0),
@@ -234,7 +240,17 @@ fn main() {
 		glm::Vec3::new(-1.3, 1.0, -1.5),
 	];
 
-	let mut keys = [false; 161];
+	let mut camera_pos = glm::Vec3::new(0.0, 0.0, 3.0);
+	let mut camera_front = glm::Vec3::new(0.0, 0.0, -1.0);
+	let camera_up = glm::Vec3::new(0.0, 1.0, 0.0);
+
+	let movement_speed = 2.0;
+	let sensitivity = 0.1;
+
+	let mut yaw: f32 = -90.0;
+	let mut pitch: f32 = 0.0;
+
+	let mut keys = Keys([false; 161]);
 
 	let start_time = Instant::now();
 	let mut program_time: f32;
@@ -261,27 +277,67 @@ fn main() {
 				..
 			} => match key.virtual_keycode {
 				Some(key_code) => {
-					keys[key_code as usize] = match key.state {
+					keys[key_code] = match key.state {
 						ElementState::Pressed => true,
 						ElementState::Released => false,
 					};
 				}
 				None => (),
 			},
+			Event::DeviceEvent {
+				event: DeviceEvent::MouseMotion {
+					delta: (mut dx, mut dy),
+				},
+				..
+			} => {
+				dx *= sensitivity;
+				dy *= -sensitivity;
+
+				yaw += dx as f32;
+				pitch += dy as f32;
+
+				if pitch > 89.0 {
+					pitch = 89.0;
+				}
+				if pitch < -89.0 {
+					pitch = -89.0;
+				}
+
+				let front = glm::Vec3::new(
+					radians(yaw).cos() * radians(pitch).cos(),
+					radians(pitch).sin(),
+					radians(yaw).sin() * radians(pitch).cos(),
+				);
+				camera_front = glm::normalize(&front);
+			}
 			_ => (),
 		});
 
-		if keys[Up as usize] {
-			pivot += 30.0 * delta_time;
-		}
-		if keys[Down as usize] {
-			pivot -= 30.0 * delta_time;
+		{
+			use glium::glutin::VirtualKeyCode::*;
+			if keys[W] {
+				camera_pos.z -= movement_speed * delta_time;
+			}
+			if keys[S] {
+				camera_pos.z += movement_speed * delta_time;
+			}
+			if keys[A] {
+				camera_pos.x -= movement_speed * delta_time;
+			}
+			if keys[D] {
+				camera_pos.x += movement_speed * delta_time;
+			}
+			if keys[Space] {
+				camera_pos.y += movement_speed * delta_time
+			}
+			if keys[LShift] {
+				camera_pos.y -= movement_speed * delta_time
+			}
 		}
 
 		// scaling -> rotation -> translation
 
-		let mut view = glm::Mat4::identity();
-		view = glm::translate(&view, &glm::Vec3::new(0.0, 0.0, -3.0));
+		let view = glm::look_at(&camera_pos, &(camera_pos + camera_front), &camera_up);
 
 		let window_size = display.gl_window().window().get_inner_size().unwrap();
 		let projection = glm::perspective(
@@ -309,10 +365,9 @@ fn main() {
 		for (idx, pos) in cube_positions.iter().enumerate() {
 			let mut model = glm::Mat4::identity();
 			model = glm::translate(&model, pos);
-			model = glm::rotate(&model, radians(pivot), &glm::Vec3::new(1.0, 0.0, 0.0));
 			model = glm::rotate(
 				&model,
-				program_time * radians((20 * (idx + 1)) as f32),
+				program_time * radians((20 * (idx + 0)) as f32),
 				&glm::Vec3::new(1.0, 0.3, 0.5),
 			);
 
@@ -348,4 +403,20 @@ implement_vertex!(Vertex, pos, tex_coords);
 #[allow(dead_code)]
 const fn radians(degrees: f32) -> f32 {
 	degrees * (std::f32::consts::PI / 180.0)
+}
+
+struct Keys([bool; 161]);
+
+impl std::ops::Index<VirtualKeyCode> for Keys {
+	type Output = bool;
+
+	fn index(&self, key: VirtualKeyCode) -> &Self::Output {
+		&self.0[key as usize]
+	}
+}
+
+impl std::ops::IndexMut<VirtualKeyCode> for Keys {
+	fn index_mut(&mut self, key: VirtualKeyCode) -> &mut Self::Output {
+		&mut self.0[key as usize]
+	}
 }
