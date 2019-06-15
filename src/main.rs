@@ -1,11 +1,11 @@
 #![feature(const_fn)]
 
-use glium::glutin::*;
+use glium::glutin::{VirtualKeyCode::*, *};
 use glium::index::PrimitiveType;
 use glium::texture::{RawImage2d, SrgbTexture2d};
 use glium::*;
 use nalgebra_glm as glm;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 fn main() {
 	let mut events_loop = glium::glutin::EventsLoop::new();
@@ -13,7 +13,9 @@ fn main() {
 		.with_dimensions((800, 600).into())
 		.with_title(env!("CARGO_PKG_NAME"));
 
-	let context = glium::glutin::ContextBuilder::new().with_gl_profile(GlProfile::Core);
+	let context = glium::glutin::ContextBuilder::new()
+		.with_gl_profile(GlProfile::Core)
+		.with_vsync(true);
 
 	let display = glium::Display::new(window, context, &events_loop).unwrap();
 
@@ -22,6 +24,7 @@ fn main() {
 	println!("{:?}", display.get_opengl_renderer_string());
 	println!();
 
+	/*
 	let verticies = [
 		Vertex {
 			pos: [-1.0, 1.0, 0.0],
@@ -40,8 +43,156 @@ fn main() {
 			tex_coords: [0.0, 0.0],
 		},
 	];
+	*/
 
-	let vertex_buffer = glium::VertexBuffer::new(&display, &verticies).unwrap();
+	let vertices = [
+		Vertex {
+			pos: [-0.5, -0.5, -0.5],
+			tex_coords: [0.0, 0.0],
+		},
+		Vertex {
+			pos: [0.5, -0.5, -0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, -0.5],
+			tex_coords: [1.0, 1.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, -0.5],
+			tex_coords: [1.0, 1.0],
+		},
+		Vertex {
+			pos: [-0.5, 0.5, -0.5],
+			tex_coords: [0.0, 1.0],
+		},
+		Vertex {
+			pos: [-0.5, -0.5, -0.5],
+			tex_coords: [0.0, 0.0],
+		},
+		Vertex {
+			pos: [-0.5, -0.5, 0.5],
+			tex_coords: [0.0, 0.0],
+		},
+		Vertex {
+			pos: [0.5, -0.5, 0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, 0.5],
+			tex_coords: [1.0, 1.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, 0.5],
+			tex_coords: [1.0, 1.0],
+		},
+		Vertex {
+			pos: [-0.5, 0.5, 0.5],
+			tex_coords: [0.0, 1.0],
+		},
+		Vertex {
+			pos: [-0.5, -0.5, 0.5],
+			tex_coords: [0.0, 0.0],
+		},
+		Vertex {
+			pos: [-0.5, 0.5, 0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [-0.5, 0.5, -0.5],
+			tex_coords: [1.0, 1.0],
+		},
+		Vertex {
+			pos: [-0.5, -0.5, -0.5],
+			tex_coords: [0.0, 1.0],
+		},
+		Vertex {
+			pos: [-0.5, -0.5, -0.5],
+			tex_coords: [0.0, 1.0],
+		},
+		Vertex {
+			pos: [-0.5, -0.5, 0.5],
+			tex_coords: [0.0, 0.0],
+		},
+		Vertex {
+			pos: [-0.5, 0.5, 0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, 0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, -0.5],
+			tex_coords: [1.0, 1.0],
+		},
+		Vertex {
+			pos: [0.5, -0.5, -0.5],
+			tex_coords: [0.0, 1.0],
+		},
+		Vertex {
+			pos: [0.5, -0.5, -0.5],
+			tex_coords: [0.0, 1.0],
+		},
+		Vertex {
+			pos: [0.5, -0.5, 0.5],
+			tex_coords: [0.0, 0.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, 0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [-0.5, -0.5, -0.5],
+			tex_coords: [0.0, 1.0],
+		},
+		Vertex {
+			pos: [0.5, -0.5, -0.5],
+			tex_coords: [1.0, 1.0],
+		},
+		Vertex {
+			pos: [0.5, -0.5, 0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [0.5, -0.5, 0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [-0.5, -0.5, 0.5],
+			tex_coords: [0.0, 0.0],
+		},
+		Vertex {
+			pos: [-0.5, -0.5, -0.5],
+			tex_coords: [0.0, 1.0],
+		},
+		Vertex {
+			pos: [-0.5, 0.5, -0.5],
+			tex_coords: [0.0, 1.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, -0.5],
+			tex_coords: [1.0, 1.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, 0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [0.5, 0.5, 0.5],
+			tex_coords: [1.0, 0.0],
+		},
+		Vertex {
+			pos: [-0.5, 0.5, 0.5],
+			tex_coords: [0.0, 0.0],
+		},
+		Vertex {
+			pos: [-0.5, 0.5, -0.5],
+			tex_coords: [0.0, 1.],
+		},
+	];
+
+	let vertex_buffer = glium::VertexBuffer::new(&display, &vertices).unwrap();
 	let index_buffer = glium::IndexBuffer::new(
 		&display,
 		PrimitiveType::TrianglesList,
@@ -68,16 +219,25 @@ fn main() {
 		.magnify_filter(uniforms::MagnifySamplerFilter::Nearest)
 		.minify_filter(uniforms::MinifySamplerFilter::Nearest);
 
-	/*
-	let mut transform: [[f32; 4]; 4] = [
-		[0.5, 0.0, 0.0, 0.0],
-		[0.0, 0.5, 0.0, 0.0],
-		[0.0, 0.0, 0.5, 0.0],
-		[-0.2, 0.4, 0.0, 1.0],
-	];
-	*/
+	let mut pivot = 0.0;
 
-	let mut keys: [bool; 100] = [false; 100];
+	let cube_positions = [
+		glm::Vec3::new(0.0, 0.0, 0.0),
+		glm::Vec3::new(2.0, 5.0, -15.0),
+		glm::Vec3::new(-1.5, -2.2, -2.5),
+		glm::Vec3::new(-3.8, -2.0, -12.3),
+		glm::Vec3::new(2.4, -0.4, -3.5),
+		glm::Vec3::new(-1.7, 3.0, -7.5),
+		glm::Vec3::new(1.3, -2.0, -2.5),
+		glm::Vec3::new(1.5, 2.0, -2.5),
+		glm::Vec3::new(1.5, 0.2, -1.5),
+		glm::Vec3::new(-1.3, 1.0, -1.5),
+	];
+
+	let mut keys = [false; 161];
+
+	let start_time = Instant::now();
+	let mut program_time: f32;
 
 	let mut last_frame = Instant::now();
 	let mut delta_time: f32;
@@ -86,6 +246,8 @@ fn main() {
 	while running {
 		delta_time = last_frame.elapsed().as_micros() as f32 / 1_000_000.0;
 		last_frame = Instant::now();
+
+		program_time = start_time.elapsed().as_micros() as f32 / 1_000_000.0;
 
 		events_loop.poll_events(|event| match event {
 			Event::WindowEvent {
@@ -97,24 +259,26 @@ fn main() {
 			Event::DeviceEvent {
 				event: DeviceEvent::Key(key),
 				..
-			} => {
-				if key.scancode >= keys.len() as u32 {
-					println!("Unknown scancode: {:?}", key);
-					return;
+			} => match key.virtual_keycode {
+				Some(key_code) => {
+					keys[key_code as usize] = match key.state {
+						ElementState::Pressed => true,
+						ElementState::Released => false,
+					};
 				}
-
-				keys[key.scancode as usize] = match key.state {
-					ElementState::Pressed => true,
-					ElementState::Released => false,
-				};
-			}
+				None => (),
+			},
 			_ => (),
 		});
 
-		// scaling -> rotation -> translation
+		if keys[Up as usize] {
+			pivot += 30.0 * delta_time;
+		}
+		if keys[Down as usize] {
+			pivot -= 30.0 * delta_time;
+		}
 
-		let mut model = glm::Mat4::identity();
-		model = glm::rotate(&model, radians(-55.0), &glm::Vec3::new(1.0, 0.0, 0.0));
+		// scaling -> rotation -> translation
 
 		let mut view = glm::Mat4::identity();
 		view = glm::translate(&view, &glm::Vec3::new(0.0, 0.0, -3.0));
@@ -127,30 +291,48 @@ fn main() {
 			100.0,
 		);
 
-		let transform = projection * view * model;
+		let vp = projection * view;
 
 		let mut frame = display.draw();
 
-		frame.clear_color(0.2, 0.3, 0.3, 1.0);
-
-		let uniforms = uniform! {
-			transform: *transform.as_ref(),
-			tex: texture,
-		};
+		frame.clear_color_and_depth((0.2, 0.3, 0.3, 1.0), 1.0);
 
 		let draw_params = DrawParameters {
+			depth: Depth {
+				test: DepthTest::IfLess,
+				write: true,
+				..Default::default()
+			},
 			..Default::default()
 		};
 
-		frame
-			.draw(
-				&vertex_buffer,
-				&index_buffer,
-				&program,
-				&uniforms,
-				&draw_params,
-			)
-			.unwrap();
+		for (idx, pos) in cube_positions.iter().enumerate() {
+			let mut model = glm::Mat4::identity();
+			model = glm::translate(&model, pos);
+			model = glm::rotate(&model, radians(pivot), &glm::Vec3::new(1.0, 0.0, 0.0));
+			model = glm::rotate(
+				&model,
+				program_time * radians((20 * (idx + 1)) as f32),
+				&glm::Vec3::new(1.0, 0.3, 0.5),
+			);
+
+			let transform = vp * model;
+
+			let uniforms = uniform! {
+				transform: *transform.as_ref(),
+				tex: texture,
+			};
+
+			frame
+				.draw(
+					&vertex_buffer,
+					&index::NoIndices(PrimitiveType::TrianglesList),
+					&program,
+					&uniforms,
+					&draw_params,
+				)
+				.unwrap();
+		}
 
 		frame.finish().unwrap();
 	}
