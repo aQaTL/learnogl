@@ -240,15 +240,7 @@ fn main() {
 		glm::Vec3::new(-1.3, 1.0, -1.5),
 	];
 
-	let mut camera_pos = glm::Vec3::new(0.0, 0.0, 3.0);
-	let mut camera_front = glm::Vec3::new(0.0, 0.0, -1.0);
-	let camera_up = glm::Vec3::new(0.0, 1.0, 0.0);
-
-	let movement_speed = 2.0;
-	let sensitivity = 0.1;
-
-	let mut yaw: f32 = -90.0;
-	let mut pitch: f32 = 0.0;
+	let mut camera = Camera::new();
 
 	let mut keys = Keys([false; 161]);
 
@@ -285,63 +277,23 @@ fn main() {
 				None => (),
 			},
 			Event::DeviceEvent {
-				event: DeviceEvent::MouseMotion {
-					delta: (mut dx, mut dy),
-				},
+				event: DeviceEvent::MouseMotion { delta: (dx, dy) },
 				..
 			} => {
-				dx *= sensitivity;
-				dy *= -sensitivity;
-
-				yaw += dx as f32;
-				pitch += dy as f32;
-
-				if pitch > 89.0 {
-					pitch = 89.0;
-				}
-				if pitch < -89.0 {
-					pitch = -89.0;
-				}
-
-				let front = glm::Vec3::new(
-					radians(yaw).cos() * radians(pitch).cos(),
-					radians(pitch).sin(),
-					radians(yaw).sin() * radians(pitch).cos(),
-				);
-				camera_front = glm::normalize(&front);
+				camera_process_mouse_input(&mut camera, dx as f32, dy as f32);
 			}
 			_ => (),
 		});
 
-		{
-			use glium::glutin::VirtualKeyCode::*;
-			if keys[W] {
-				camera_pos.z -= movement_speed * delta_time;
-			}
-			if keys[S] {
-				camera_pos.z += movement_speed * delta_time;
-			}
-			if keys[A] {
-				camera_pos.x -= movement_speed * delta_time;
-			}
-			if keys[D] {
-				camera_pos.x += movement_speed * delta_time;
-			}
-			if keys[Space] {
-				camera_pos.y += movement_speed * delta_time
-			}
-			if keys[LShift] {
-				camera_pos.y -= movement_speed * delta_time
-			}
-		}
+		camera_process_keyboard_input(&mut camera, &keys, delta_time);
 
 		// scaling -> rotation -> translation
 
-		let view = glm::look_at(&camera_pos, &(camera_pos + camera_front), &camera_up);
+		let view = camera.view();
 
 		let window_size = display.gl_window().window().get_inner_size().unwrap();
 		let projection = glm::perspective(
-			radians(45.0),
+			radians(camera.fov),
 			(window_size.width / window_size.height) as f32,
 			0.1,
 			100.0,
@@ -418,5 +370,88 @@ impl std::ops::Index<VirtualKeyCode> for Keys {
 impl std::ops::IndexMut<VirtualKeyCode> for Keys {
 	fn index_mut(&mut self, key: VirtualKeyCode) -> &mut Self::Output {
 		&mut self.0[key as usize]
+	}
+}
+
+struct Camera {
+	pos: glm::Vec3,
+	front: glm::Vec3,
+	up: glm::Vec3,
+
+	movement_speed: f32,
+	sensitivity: f32,
+
+	yaw: f32,
+	pitch: f32,
+
+	fov: f32,
+}
+
+impl Camera {
+	fn new() -> Self {
+		Camera {
+			pos: glm::Vec3::new(0.0, 0.0, 3.0),
+			front: glm::Vec3::new(0.0, 0.0, -1.0),
+			up: glm::Vec3::new(0.0, 1.0, 0.0),
+
+			movement_speed: 2.0,
+			sensitivity: 0.1,
+
+			yaw: -90.0,
+			pitch: 0.0,
+
+			fov: 45.0,
+		}
+	}
+
+	fn view(&self) -> glm::Mat4 {
+		glm::look_at(&self.pos, &(self.pos + self.front), &self.up)
+	}
+}
+
+fn camera_process_mouse_input(camera: &mut Camera, mut dx: f32, mut dy: f32) {
+	dx *= camera.sensitivity;
+	dy *= -camera.sensitivity;
+
+	camera.yaw += dx as f32;
+	camera.pitch += dy as f32;
+
+	match camera.pitch {
+		n if n > 89.0 => camera.pitch = 89.0,
+		n if n < -89.0 => camera.pitch = -89.0,
+		_ => (),
+	}
+
+	let front = glm::Vec3::new(
+		radians(camera.yaw).cos() * radians(camera.pitch).cos(),
+		radians(camera.pitch).sin(),
+		radians(camera.yaw).sin() * radians(camera.pitch).cos(),
+	);
+	camera.front = glm::normalize(&front);
+}
+
+fn camera_process_keyboard_input(camera: &mut Camera, keys: &Keys, delta_time: f32) {
+	use glium::glutin::VirtualKeyCode::*;
+	if keys[W] {
+		camera.pos = camera.pos + (camera.front * (camera.movement_speed * delta_time));
+	}
+	if keys[S] {
+		camera.pos = camera.pos - (camera.front * (camera.movement_speed * delta_time));
+	}
+	if keys[A] {
+		camera.pos = camera.pos
+			- (glm::normalize(&glm::cross::<f32, glm::U3>(&camera.front, &camera.up))
+				* (camera.movement_speed * delta_time));
+	}
+	if keys[D] {
+		camera.pos = camera.pos
+			+ (glm::normalize(&glm::cross::<f32, glm::U3>(&camera.front, &camera.up))
+				* (camera.movement_speed * delta_time));
+	}
+	if keys[Space] {
+		camera.pos = camera.pos + (camera.up * (camera.movement_speed * delta_time));
+	}
+	if keys[LShift] {
+		camera.pos = camera.pos - (camera.up * (camera.movement_speed * delta_time));
 	}
 }
