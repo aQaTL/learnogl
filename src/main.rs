@@ -1,11 +1,12 @@
 #![feature(const_fn)]
 
+use std::time::Instant;
+
+use glium::*;
 use glium::glutin::*;
 use glium::index::PrimitiveType;
 use glium::texture::{RawImage2d, SrgbTexture2d};
-use glium::*;
 use nalgebra_glm as glm;
-use std::time::Instant;
 
 fn main() {
 	let mut events_loop = glium::glutin::EventsLoop::new();
@@ -15,7 +16,7 @@ fn main() {
 
 	let context = glium::glutin::ContextBuilder::new()
 		.with_gl_profile(GlProfile::Core)
-		.with_vsync(true);
+		.with_vsync(false);
 
 	let display = glium::Display::new(window, context, &events_loop).unwrap();
 	{
@@ -32,8 +33,8 @@ fn main() {
 	println!("{:?}", display.get_opengl_renderer_string());
 	println!();
 
+	// square
 	/*
-	let verticies = [
 		Vertex {
 			pos: [-1.0, 1.0, 0.0],
 			tex_coords: [0.0, 1.0],
@@ -53,6 +54,7 @@ fn main() {
 	];
 	*/
 
+	// cube
 	let vertices = [
 		Vertex {
 			pos: [-0.5, -0.5, -0.5],
@@ -201,7 +203,7 @@ fn main() {
 	];
 
 	let vertex_buffer = glium::VertexBuffer::new(&display, &vertices).unwrap();
-	let index_buffer = glium::IndexBuffer::new(
+	let _index_buffer = glium::IndexBuffer::new(
 		&display,
 		PrimitiveType::TrianglesList,
 		&[0u16, 1, 2, 0, 3, 2, 0],
@@ -222,22 +224,33 @@ fn main() {
 	let image = RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
 	let texture = SrgbTexture2d::new(&display, image).unwrap();
 
+	/*
 	let texture = texture
 		.sampled()
 		.magnify_filter(uniforms::MagnifySamplerFilter::Nearest)
 		.minify_filter(uniforms::MinifySamplerFilter::Nearest);
+	*/
 
-	let cube_positions = [
-		glm::Vec3::new(0.0, 0.0, 0.0),
-		glm::Vec3::new(2.0, 5.0, -15.0),
-		glm::Vec3::new(-1.5, -2.2, -2.5),
-		glm::Vec3::new(-3.8, -2.0, -12.3),
-		glm::Vec3::new(2.4, -0.4, -3.5),
-		glm::Vec3::new(-1.7, 3.0, -7.5),
-		glm::Vec3::new(1.3, -2.0, -2.5),
-		glm::Vec3::new(1.5, 2.0, -2.5),
-		glm::Vec3::new(1.5, 0.2, -1.5),
-		glm::Vec3::new(-1.3, 1.0, -1.5),
+	let texture = SampledSrgbTexture2d {
+		tex: texture,
+		sampler_behavior: uniforms::SamplerBehavior {
+			minify_filter: uniforms::MinifySamplerFilter::Nearest,
+			magnify_filter: uniforms::MagnifySamplerFilter::Nearest,
+			.. Default::default()
+		},
+	};
+
+	let cubes = [
+		GenericCube { pos: glm::Vec3::new(0.0, 0.0, 0.0), texture: &texture },
+		GenericCube { pos: glm::Vec3::new(2.0, 5.0, -15.0), texture: &texture },
+		GenericCube { pos: glm::Vec3::new(-1.5, -2.2, -2.5), texture: &texture },
+		GenericCube { pos: glm::Vec3::new(-3.8, -2.0, -12.3), texture: &texture },
+		GenericCube { pos: glm::Vec3::new(2.4, -0.4, -3.5), texture: &texture },
+		GenericCube { pos: glm::Vec3::new(-1.7, 3.0, -7.5), texture: &texture },
+		GenericCube { pos: glm::Vec3::new(1.3, -2.0, -2.5), texture: &texture },
+		GenericCube { pos: glm::Vec3::new(1.5, 2.0, -2.5), texture: &texture },
+		GenericCube { pos: glm::Vec3::new(1.5, 0.2, -1.5), texture: &texture },
+		GenericCube { pos: glm::Vec3::new(-1.3, 1.0, -1.5), texture: &texture },
 	];
 
 	let mut camera = Camera::new();
@@ -314,9 +327,9 @@ fn main() {
 			..Default::default()
 		};
 
-		for (idx, pos) in cube_positions.iter().enumerate() {
+		for (idx, cube) in cubes.iter().enumerate() {
 			let mut model = glm::Mat4::identity();
-			model = glm::translate(&model, pos);
+			model = glm::translate(&model, &cube.pos);
 			model = glm::rotate(
 				&model,
 				program_time * radians((20 * (idx + 0)) as f32),
@@ -324,10 +337,10 @@ fn main() {
 			);
 
 			let transform = vp * model;
-
+			
 			let uniforms = uniform! {
 				transform: *transform.as_ref(),
-				tex: texture,
+				tex: cube.texture,
 			};
 
 			frame
@@ -454,4 +467,20 @@ fn camera_process_keyboard_input(camera: &mut Camera, keys: &Keys, delta_time: f
 	if keys[LShift] {
 		camera.pos = camera.pos - (camera.up * (camera.movement_speed * delta_time));
 	}
+}
+
+pub struct SampledSrgbTexture2d {
+	pub tex: SrgbTexture2d,
+	pub sampler_behavior: uniforms::SamplerBehavior,
+}
+
+impl uniforms::AsUniformValue for &SampledSrgbTexture2d {
+	fn as_uniform_value(&self) -> uniforms::UniformValue {
+		uniforms::UniformValue::SrgbTexture2d(&self.tex, Some(self.sampler_behavior))
+	}
+}
+
+pub struct GenericCube<'a> {
+	pub pos: glm::Vec3,
+	pub texture: &'a SampledSrgbTexture2d,
 }
