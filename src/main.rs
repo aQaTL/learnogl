@@ -1,12 +1,12 @@
 #![feature(const_fn)]
 
 use std::time::Instant;
+use std::path::Path;
 
-use glium::*;
-use glium::glutin::*;
-use glium::index::PrimitiveType;
-use glium::texture::{RawImage2d, SrgbTexture2d};
+use glium::{*, glutin::*, index::PrimitiveType, texture::{RawImage2d, SrgbTexture2d}, vertex::VertexBufferAny};
 use nalgebra_glm as glm;
+
+mod game;
 
 fn main() {
 	let mut events_loop = glium::glutin::EventsLoop::new();
@@ -33,176 +33,11 @@ fn main() {
 	println!("{:?}", display.get_opengl_renderer_string());
 	println!();
 
-	// square
-	/*
-		Vertex {
-			pos: [-1.0, 1.0, 0.0],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [1.0, 1.0, 0.0],
-			tex_coords: [1.0, 1.0],
-		},
-		Vertex {
-			pos: [1.0, -1.0, 0.0],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [-1.0, -1.0, 0.0],
-			tex_coords: [0.0, 0.0],
-		},
-	];
-	*/
+	let vertex_buffer = match load_mesh(&display, Path::new("models/nanosuit/nanosuit.obj")) {
+		Ok(vb) => vb,
+		Err(err) => panic!(format!("Error loading nanosuit.obj: {:#?}", err)),
+	};
 
-	// cube
-	let vertices = [
-		Vertex {
-			pos: [-0.5, -0.5, -0.5],
-			tex_coords: [0.0, 0.0],
-		},
-		Vertex {
-			pos: [0.5, -0.5, -0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, -0.5],
-			tex_coords: [1.0, 1.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, -0.5],
-			tex_coords: [1.0, 1.0],
-		},
-		Vertex {
-			pos: [-0.5, 0.5, -0.5],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [-0.5, -0.5, -0.5],
-			tex_coords: [0.0, 0.0],
-		},
-		Vertex {
-			pos: [-0.5, -0.5, 0.5],
-			tex_coords: [0.0, 0.0],
-		},
-		Vertex {
-			pos: [0.5, -0.5, 0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, 0.5],
-			tex_coords: [1.0, 1.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, 0.5],
-			tex_coords: [1.0, 1.0],
-		},
-		Vertex {
-			pos: [-0.5, 0.5, 0.5],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [-0.5, -0.5, 0.5],
-			tex_coords: [0.0, 0.0],
-		},
-		Vertex {
-			pos: [-0.5, 0.5, 0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [-0.5, 0.5, -0.5],
-			tex_coords: [1.0, 1.0],
-		},
-		Vertex {
-			pos: [-0.5, -0.5, -0.5],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [-0.5, -0.5, -0.5],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [-0.5, -0.5, 0.5],
-			tex_coords: [0.0, 0.0],
-		},
-		Vertex {
-			pos: [-0.5, 0.5, 0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, 0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, -0.5],
-			tex_coords: [1.0, 1.0],
-		},
-		Vertex {
-			pos: [0.5, -0.5, -0.5],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [0.5, -0.5, -0.5],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [0.5, -0.5, 0.5],
-			tex_coords: [0.0, 0.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, 0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [-0.5, -0.5, -0.5],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [0.5, -0.5, -0.5],
-			tex_coords: [1.0, 1.0],
-		},
-		Vertex {
-			pos: [0.5, -0.5, 0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [0.5, -0.5, 0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [-0.5, -0.5, 0.5],
-			tex_coords: [0.0, 0.0],
-		},
-		Vertex {
-			pos: [-0.5, -0.5, -0.5],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [-0.5, 0.5, -0.5],
-			tex_coords: [0.0, 1.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, -0.5],
-			tex_coords: [1.0, 1.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, 0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [0.5, 0.5, 0.5],
-			tex_coords: [1.0, 0.0],
-		},
-		Vertex {
-			pos: [-0.5, 0.5, 0.5],
-			tex_coords: [0.0, 0.0],
-		},
-		Vertex {
-			pos: [-0.5, 0.5, -0.5],
-			tex_coords: [0.0, 1.],
-		},
-	];
-
-	let vertex_buffer = glium::VertexBuffer::new(&display, &vertices).unwrap();
 	let _index_buffer = glium::IndexBuffer::new(
 		&display,
 		PrimitiveType::TrianglesList,
@@ -212,7 +47,7 @@ fn main() {
 
 	let program = program!(
 	&display,
-	430 => {
+	420 => {
 		vertex: include_str!("shaders/vertex.glsl"),
 		fragment: include_str!("shaders/fragment.glsl"),
 	})
@@ -223,13 +58,6 @@ fn main() {
 	let image_dimensions = image.dimensions();
 	let image = RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
 	let texture = SrgbTexture2d::new(&display, image).unwrap();
-
-	/*
-	let texture = texture
-		.sampled()
-		.magnify_filter(uniforms::MagnifySamplerFilter::Nearest)
-		.minify_filter(uniforms::MinifySamplerFilter::Nearest);
-	*/
 
 	let texture = SampledSrgbTexture2d {
 		tex: texture,
@@ -253,7 +81,7 @@ fn main() {
 		GenericCube { pos: glm::Vec3::new(-1.3, 1.0, -1.5), texture: &texture },
 	];
 
-	let mut camera = Camera::new();
+	let mut camera = Camera::default();
 
 	let mut keys = Keys([false; 161]);
 
@@ -263,12 +91,16 @@ fn main() {
 	let mut last_frame = Instant::now();
 	let mut delta_time: f32;
 
+	let mut game = game::Game::new();
+
 	let mut running = true;
 	while running {
 		delta_time = last_frame.elapsed().as_micros() as f32 / 1_000_000.0;
 		last_frame = Instant::now();
 
 		program_time = start_time.elapsed().as_micros() as f32 / 1_000_000.0;
+
+		game.update(delta_time);
 
 		events_loop.poll_events(|event| match event {
 			Event::WindowEvent {
@@ -327,32 +159,25 @@ fn main() {
 			..Default::default()
 		};
 
-		for (idx, cube) in cubes.iter().enumerate() {
-			let mut model = glm::Mat4::identity();
-			model = glm::translate(&model, &cube.pos);
-			model = glm::rotate(
-				&model,
-				program_time * radians((20 * (idx + 0)) as f32),
-				&glm::Vec3::new(1.0, 0.3, 0.5),
-			);
+		let mut model = glm::Mat4::identity();
+		model = glm::translate(&model, &cubes[0].pos);
 
-			let transform = vp * model;
-			
-			let uniforms = uniform! {
-				transform: *transform.as_ref(),
-				tex: cube.texture,
-			};
+		let transform = vp * model;
 
-			frame
-				.draw(
-					&vertex_buffer,
-					&index::NoIndices(PrimitiveType::TrianglesList),
-					&program,
-					&uniforms,
-					&draw_params,
-				)
-				.unwrap();
-		}
+		let uniforms = uniform! {
+			transform: *transform.as_ref(),
+			tex: cubes[0].texture,
+		};
+
+		frame
+			.draw(
+				&vertex_buffer,
+				&index::NoIndices(PrimitiveType::TrianglesList),
+				&program,
+				&uniforms,
+				&draw_params,
+			)
+			.unwrap();
 
 		frame.finish().unwrap();
 	}
@@ -361,9 +186,10 @@ fn main() {
 #[derive(Copy, Clone)]
 struct Vertex {
 	pos: [f32; 3],
+	normal: [f32; 3],
 	tex_coords: [f32; 2],
 }
-implement_vertex!(Vertex, pos, tex_coords);
+implement_vertex!(Vertex, pos, normal, tex_coords);
 
 #[allow(dead_code)]
 const fn radians(degrees: f32) -> f32 {
@@ -401,7 +227,13 @@ struct Camera {
 }
 
 impl Camera {
-	fn new() -> Self {
+	fn view(&self) -> glm::Mat4 {
+		glm::look_at(&self.pos, &(self.pos + self.front), &self.up)
+	}
+}
+
+impl Default for Camera {
+	fn default() -> Self {
 		Camera {
 			pos: glm::Vec3::new(0.0, 0.0, 3.0),
 			front: glm::Vec3::new(0.0, 0.0, -1.0),
@@ -415,10 +247,6 @@ impl Camera {
 
 			fov: 45.0,
 		}
-	}
-
-	fn view(&self) -> glm::Mat4 {
-		glm::look_at(&self.pos, &(self.pos + self.front), &self.up)
 	}
 }
 
@@ -483,4 +311,62 @@ impl uniforms::AsUniformValue for &SampledSrgbTexture2d {
 pub struct GenericCube<'a> {
 	pub pos: glm::Vec3,
 	pub texture: &'a SampledSrgbTexture2d,
+}
+
+fn load_mesh(display: &glium::Display, path: &Path) -> Result<VertexBufferAny, tobj::LoadError> {
+	#[derive(Copy, Clone)]
+	struct Vertex {
+		pos: [f32; 3],
+		normals: [f32; 3],
+		tex_coords: [f32; 2],
+	}
+	implement_vertex!(Vertex, pos, normals, tex_coords);
+
+	let mut min_pos = [std::f32::INFINITY; 3];
+	let mut pax_pos = [std::f32::NEG_INFINITY; 3];
+	let mut vertex_data = Vec::new();
+
+	match tobj::load_obj(path) {
+		Ok((models, mats)) => {
+			for model in &models {
+				println!("Loading model: {}", model.name);
+
+				let mesh = &model.mesh;
+				vertex_data.reserve(mesh.indices.len());
+				for idx in &mesh.indices {
+					let i = *idx as usize;
+					let pos = [
+						mesh.positions[i * 3],
+						mesh.positions[i * 3 + 1],
+						mesh.positions[i * 3 + 2],
+					];
+
+					let normals = if !mesh.normals.is_empty() {
+						[
+							mesh.normals[i * 3],
+							mesh.normals[i * 3 + 1],
+							mesh.normals[i * 3 + 2],
+						]
+					} else {
+						[0.0, 0.0, 0.0]
+					};
+
+					let tex_coords = if !mesh.texcoords.is_empty() {
+						[
+							mesh.texcoords[i * 2],
+							mesh.texcoords[i * 2 + 1],
+						]
+					} else {
+						[0.0, 0.0]
+					};
+
+					vertex_data.push(Vertex { pos, normals, tex_coords });
+				}
+			}
+
+			let vb = glium::VertexBuffer::new(display, &vertex_data).unwrap();
+			Ok(vb.into_vertex_buffer_any())
+		}
+		Err(e) => return Err(e),
+	}
 }
