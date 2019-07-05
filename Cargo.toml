@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 glium = "0.25.0"
 image = "0.21"
-nalgebra-glm = "0.4"
+glm = { version = "0.4", package = "nalgebra-glm" }
 tobj = "0.1.7"
 imgui = "0.1.0-rc.1"
 imgui-glium-renderer = "0.1.0-rc.1"
