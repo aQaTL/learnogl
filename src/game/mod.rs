@@ -60,10 +60,17 @@ pub enum Turn {
 	West,
 }
 
+#[derive(Copy, Clone)]
 pub enum PlayerState {
 	Standing,
 	//jump count
 	Jumping(u8),
+}
+
+impl Default for PlayerState {
+	fn default() -> Self {
+		PlayerState::Standing
+	}
 }
 
 impl Tower {

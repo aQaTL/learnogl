@@ -1,8 +1,8 @@
 #![feature(const_fn)]
 
-use std::path::Path;
+use std::path::{Path};
 
-use crate::game::GameFaze;
+use crate::game::{GameFaze, PlayerState};
 use crate::input::KeyState;
 use glium::backend::Facade;
 use glium::{
@@ -13,12 +13,16 @@ use glium::{
 };
 use imgui::im_str;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use crate::ecs::{World};
+use std::rc::Rc;
 
 pub mod game;
 pub mod input;
 pub mod renderer;
+pub mod ecs;
 
 fn main() {
+	println!("Size of SrgbTexture2d: {}", std::mem::size_of::<glium::texture::srgb_texture2d::SrgbTexture2d>());
 	let mut events_loop = glium::glutin::EventsLoop::new();
 
 	let display = {
@@ -53,7 +57,7 @@ fn main() {
 		vertex: include_str!("shaders/vertex.glsl"),
 		fragment: include_str!("shaders/fragment.glsl"),
 	})
-	.unwrap();
+		.unwrap();
 
 	let mut camera = input::Camera::new();
 	input::toggle_mouse_grab(&mut camera, window);
@@ -82,6 +86,9 @@ fn main() {
 	let mut gui_renderer = imgui_glium_renderer::GliumRenderer::init(&mut imgui, &display).unwrap();
 
 	let mut game = game::Game::new(load_texture("images/box.png", &display).unwrap());
+
+	let mut world = ecs::World::new();
+	add_entities(&mut world, &display);
 
 	game.set_faze(GameFaze::GameRunning);
 
@@ -158,7 +165,7 @@ fn main() {
 					&vertex_buffer,
 					&index_buffer,
 				)
-				.unwrap();
+					.unwrap();
 
 				let ui = imgui.frame();
 				ui.window(im_str!("learnogl"))
@@ -176,6 +183,33 @@ fn main() {
 
 		frame.finish().unwrap();
 	}
+}
+
+//TODO texture storage
+fn add_entities(world: &mut World, display: &glium::Display) {
+	use crate::ecs::components::*;
+
+	let box_tex_name = String::from("images/box.png");
+	world.textures.insert(
+		box_tex_name.clone(),
+		load_texture(&box_tex_name, display).unwrap(),
+	);
+
+	//Player
+	let player_mask = POSITION | SIZE | VELOCITY | SPRITE | PLAYER;
+	let player = world.new_entity(Some(player_mask));
+	world.positions[player] = glm::Vec3::new(0.0, 0.0, 0.0);
+	world.sizes[player] = glm::Vec3::new(5.0, 5.0, 0.0);
+	world.sprites[player] = Sprite { tex_name: box_tex_name };
+	world.velocities[player] = Velocity {
+		velocity: glm::Vec3::new(0.0, 0.0, 0.0),
+		acceleration: [100.0, 40.0, 0.0].into(),
+	};
+	world.players[player] = Player {
+		state: PlayerState::Standing,
+		max_jump_count: 2,
+	};
+
 }
 
 fn load_texture<P: AsRef<Path>, F: Facade>(
