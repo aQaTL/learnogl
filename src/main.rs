@@ -1,20 +1,18 @@
 #![feature(const_fn)]
+#![deny(unsafe_code)]
 
-use std::path::{Path};
+use std::path::Path;
 
-use crate::game::{GameFaze, PlayerState};
-use crate::input::KeyState;
+use crate::game::GameClock;
 use glium::backend::Facade;
 use glium::{
 	glutin::*,
-	program,
 	texture::{RawImage2d, SrgbTexture2d},
-	uniforms, Surface,
+	uniforms,
 };
-use imgui::im_str;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
-use crate::ecs::{World};
-use std::rc::Rc;
+use crate::ecs::{World, components};
+use crate::input::KeyState;
 
 pub mod game;
 pub mod input;
@@ -23,6 +21,7 @@ pub mod ecs;
 
 fn main() {
 	println!("Size of SrgbTexture2d: {}", std::mem::size_of::<glium::texture::srgb_texture2d::SrgbTexture2d>());
+	println!("Size of TextureAny: {}", std::mem::size_of::<glium::texture::TextureAny>());
 	let mut events_loop = glium::glutin::EventsLoop::new();
 
 	let display = {
@@ -37,11 +36,13 @@ fn main() {
 		glium::Display::new(window, context, &events_loop).unwrap()
 	};
 
-	let window = display.gl_window();
-	let window = window.window();
-	window.hide_cursor(true);
-	if let Err(err) = window.grab_cursor(true) {
-		println!("Failed to grab the cursor: {}", err);
+	{
+		let window = display.gl_window();
+		let window = window.window();
+		window.hide_cursor(true);
+		if let Err(err) = window.grab_cursor(true) {
+			println!("Failed to grab the cursor: {}", err);
+		}
 	}
 
 	println!("{:?}", display.get_opengl_version());
@@ -49,67 +50,85 @@ fn main() {
 	println!("{:?}", display.get_opengl_renderer_string());
 	println!();
 
-	let (vertex_buffer, index_buffer) = renderer::create_rect_vb(&display).unwrap();
+	let imgui = {
+		let mut ctx = imgui::Context::create();
+		ctx.set_ini_filename(None);
 
-	let program = program!(
-	&display,
-	420 => {
-		vertex: include_str!("shaders/vertex.glsl"),
-		fragment: include_str!("shaders/fragment.glsl"),
-	})
-		.unwrap();
-
-	let mut camera = input::Camera::new();
-	input::toggle_mouse_grab(&mut camera, window);
-
-	let mut keys = input::Keys::new();
-
-	let mut imgui = imgui::Context::create();
-	imgui.set_ini_filename(None);
-
-	let mut platform = WinitPlatform::init(&mut imgui);
-	{
-		let gl_window = display.gl_window();
-		let window = gl_window.window();
-		platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Rounded);
-	}
-
-	imgui
-		.fonts()
-		.add_font(&[imgui::FontSource::DefaultFontData {
-			config: Some(imgui::FontConfig {
-				size_pixels: 13.0,
-				..imgui::FontConfig::default()
-			}),
-		}]);
-
-	let mut gui_renderer = imgui_glium_renderer::GliumRenderer::init(&mut imgui, &display).unwrap();
-
-	let mut game = game::Game::new(load_texture("images/box.png", &display).unwrap());
-
-	let mut world = ecs::World::new();
-	add_entities(&mut world, &display);
-
-	game.set_faze(GameFaze::GameRunning);
-
-	let mut running = true;
-	while running {
-		game.clock.update();
-
+		let mut platform = WinitPlatform::init(&mut ctx);
 		{
 			let gl_window = display.gl_window();
 			let window = gl_window.window();
-			let io = imgui.io_mut();
-			platform
-				.prepare_frame(io, &window)
-				.expect("Failed to start frame");
-			io.update_delta_time(game.clock.last_frame);
+			platform.attach_window(ctx.io_mut(), &window, HiDpiMode::Rounded);
 		}
 
-		keys.update();
+		ctx
+			.fonts()
+			.add_font(&[imgui::FontSource::DefaultFontData {
+				config: Some(imgui::FontConfig {
+					size_pixels: 13.0,
+					..imgui::FontConfig::default()
+				}),
+			}]);
 
+		let renderer = imgui_glium_renderer::GliumRenderer::init(&mut ctx, &display).unwrap();
+
+		renderer::Imgui {
+			ctx,
+			platform,
+			renderer,
+		}
+	};
+
+	let input = {
+		let mut camera = input::Camera::new();
+		let window = display.gl_window();
+		input::toggle_mouse_grab(&mut camera, window.window());
+		input::Input {
+			camera: camera,
+			keys: input::Keys::new(),
+		}
+	};
+
+	let renderer = renderer::Renderer::new(display).unwrap();
+
+	let mut world = {
+		const INIT_CAPACITY: usize = 100;
+		World {
+			//TODO use with_capacity
+			entities: vec![components::NONE; INIT_CAPACITY],
+			positions: vec![[0.0, 0.0, 0.0].into(); INIT_CAPACITY],
+			sizes: vec![[0.0, 0.0, 0.0].into(); INIT_CAPACITY],
+			velocities: vec![Default::default(); INIT_CAPACITY],
+			sprites: vec![Default::default(); INIT_CAPACITY],
+			players: vec![Default::default(); INIT_CAPACITY],
+			jump_states: vec![Default::default(); INIT_CAPACITY],
+
+			clock: GameClock::default(),
+
+			textures: vec![],
+			input: input,
+			renderer: renderer,
+			imgui: imgui,
+		}
+	};
+	add_entities(&mut world);
+
+	let mut running = true;
+	while running {
+		world.update_clocks();
+
+//		if game.debug_mode {
+//			input::camera_process_movement_input(&mut camera, &keys, game.clock.delta_time);
+//		}
+//		input::camera_process_shortcuts(&display, &mut camera, &keys, game.clock.delta_time);
+
+		// Game update
+//		game.process_keyboard_input(&keys);
+//		game.update();
+
+		//Input handling
+		world.input.keys.update();
 		events_loop.poll_events(|event| {
-			platform.handle_event(imgui.io_mut(), &window, &event);
 			match event {
 				Event::WindowEvent {
 					event: WindowEvent::CloseRequested,
@@ -122,94 +141,54 @@ fn main() {
 					..
 				} => match key.virtual_keycode {
 					Some(key_code) => {
-						keys.0[key_code as usize] = match key.state {
+						world.input.keys.0[key_code as usize] = match key.state {
 							ElementState::Released => KeyState::Released,
 							ElementState::Pressed => KeyState::JustPressed,
 						};
 					}
 					None => (),
 				},
-				Event::DeviceEvent {
-					event: DeviceEvent::MouseMotion { delta: (dx, dy) },
-					..
-				} => {
-					if game.debug_mode {
-						input::camera_process_mouse_input(&mut camera, dx as f32, dy as f32);
-					}
-				}
+
 				_ => (),
 			}
+
+			world.handle_input_event(event);
 		});
 
-		if game.debug_mode {
-			input::camera_process_movement_input(&mut camera, &keys, game.clock.delta_time);
-		}
-		input::camera_process_shortcuts(&display, &mut camera, &keys, game.clock.delta_time);
+		world.update();
 
-		// Game update
-		game.process_keyboard_input(&keys);
-		game.update();
-
-		let mut frame = display.draw();
-
-		frame.clear_color_and_depth((0.2, 0.3, 0.3, 1.0), 1.0);
-
-		match game.faze {
-			GameFaze::TitleScreen => (),
-			GameFaze::GameRunning => {
-				renderer::render(
-					&mut frame,
-					&program,
-					&game,
-					&camera,
-					&vertex_buffer,
-					&index_buffer,
-				)
-					.unwrap();
-
-				let ui = imgui.frame();
-				ui.window(im_str!("learnogl"))
-					.size([300.0, 120.0], imgui::Condition::FirstUseEver)
-					.build(|| {
-						ui.text(im_str!("Player pos: {:?}", game.tower.player.pos));
-						ui.text(im_str!("Camera pos: {:?}", camera.pos));
-					});
-				gui_renderer
-					.render(&mut frame, ui.render())
-					.expect("imgui renderer fail");
-			}
-			GameFaze::DeathScreen => (),
-		}
-
-		frame.finish().unwrap();
+		ecs::World::input(&mut world);
+		ecs::World::movement(&mut world);
+		ecs::World::render(&mut world);
 	}
 }
 
+fn handle_input() {
+
+}
+
 //TODO texture storage
-fn add_entities(world: &mut World, display: &glium::Display) {
+fn add_entities(world: &mut World) {
 	use crate::ecs::components::*;
 
-	let box_tex_name = String::from("images/box.png");
-	world.textures.insert(
-		box_tex_name.clone(),
-		load_texture(&box_tex_name, display).unwrap(),
+	world.textures.push(
+		load_texture("images/box.png", &world.renderer.display).unwrap(),
 	);
 
 	//Player
-	let player_mask = POSITION | SIZE | VELOCITY | SPRITE | PLAYER;
-	let player = world.new_entity(Some(player_mask));
+	let player = world.new_entity(Some(entity::PLAYER));
 	world.positions[player] = glm::Vec3::new(0.0, 0.0, 0.0);
 	world.sizes[player] = glm::Vec3::new(5.0, 5.0, 0.0);
-	world.sprites[player] = Sprite { tex_name: box_tex_name };
+	world.sprites[player] = Sprite { tex_idx: 0 };
 	world.velocities[player] = Velocity {
 		velocity: glm::Vec3::new(0.0, 0.0, 0.0),
 		acceleration: [100.0, 40.0, 0.0].into(),
 	};
 	world.players[player] = Player {
-		state: PlayerState::Standing,
+		state: JumpState::Standing,
 		max_jump_count: 2,
 	};
-
+	world.jump_states[player] = JumpState::Standing;
 }
 
 fn load_texture<P: AsRef<Path>, F: Facade>(

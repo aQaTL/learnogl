@@ -1,4 +1,9 @@
-use glium::glutin::{self, VirtualKeyCode};
+use glium::glutin::{self, VirtualKeyCode, EventsLoop};
+
+pub struct Input {
+	pub camera: Camera,
+	pub keys: Keys,
+}
 
 pub struct Keys(pub [KeyState; 161]);
 

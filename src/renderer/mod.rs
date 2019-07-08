@@ -1,12 +1,48 @@
 use glium::index::IndexBufferAny;
-use glium::uniform;
+use glium::{glutin};
 use glium::vertex::VertexBufferAny;
 use glium::{
-	implement_vertex, index::PrimitiveType, Depth, DepthTest, Display, DrawParameters, Surface,
+	program, implement_vertex, index::PrimitiveType, Display,
 };
 
-use crate::game::Game;
-use crate::input::Camera;
+use crate::SampledSrgbTexture2d;
+
+pub struct Renderer {
+	pub display: Display,
+
+	pub program: glium::Program,
+	pub rectangle_buffers: (VertexBufferAny, IndexBufferAny),
+}
+
+impl Renderer {
+	pub fn new(display: Display) -> Result<Self, Box<dyn std::error::Error>> {
+		let buffers = create_rect_vb(&display)?;
+
+		let program = program!(
+			&display,
+			420 => {
+				vertex: include_str!("../shaders/vertex.glsl"),
+				fragment: include_str!("../shaders/fragment.glsl"),
+			})?;
+
+		Ok(Self {
+			display,
+			program,
+			rectangle_buffers: buffers,
+		})
+	}
+}
+
+pub struct Imgui {
+	pub ctx: imgui::Context,
+	pub platform: imgui_winit_support::WinitPlatform,
+	pub renderer: imgui_glium_renderer::GliumRenderer,
+}
+
+impl Renderer {
+	#[allow(unused_variables)]
+	pub fn render_sprite(&mut self, frame: &mut glium::Frame, program: &glium::Program, pos: glm::Vec3, size: glm::Vec3, tex: &SampledSrgbTexture2d) {}
+}
 
 pub fn create_rect_vb(
 	display: &Display,
@@ -46,11 +82,12 @@ pub fn create_rect_vb(
 		PrimitiveType::TrianglesList,
 		&[0u16, 1, 2, 0, 3, 2, 0],
 	)?
-	.into();
+		.into();
 
 	Ok((vertex_buffer, index_buffer))
 }
 
+/*
 pub fn render(
 	frame: &mut glium::Frame,
 	program: &glium::Program,
@@ -111,3 +148,4 @@ pub fn render(
 
 	Ok(())
 }
+*/
