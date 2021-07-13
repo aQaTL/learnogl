@@ -204,7 +204,7 @@ impl Shader {
 	}
 }
 
-unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> Shader {
+unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> u32 {
 	let compile_shader = |source: &str, s_type| {
 		let shader = CreateShader(s_type);
 		ShaderSource(
@@ -263,7 +263,7 @@ unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> Shader {
 	DeleteShader(vertex_shader);
 	DeleteShader(fragment_shader);
 
-	Shader(shader)
+	shader
 }
 
 impl Drop for Shader {
@@ -274,7 +274,7 @@ impl Drop for Shader {
 
 impl Shader {
 	fn new(vertex_source: &str, fragment_source: &str) -> Self {
-		unsafe { new_shader(vertex_source, fragment_source) }
+		Shader(unsafe { new_shader(vertex_source, fragment_source) })
 	}
 
 	fn uniform4f(&self, name: &'static str, [a, b, c, d]: [f32; 4]) {
