@@ -160,13 +160,11 @@ unsafe fn redraw(app: &mut App) {
 	let green = (elapsed_millis as f32).sin() / 2.0 + 0.5;
 	dbg!(green);
 
-	let vertex_color_location =
-		GetUniformLocation(app.shader.0, "triangleColor\0".as_ptr() as *const GLchar);
-
 	// Render
 	app.shader.bind();
 
-	Uniform4f(vertex_color_location, 1.0, green, 0.0, 0.5);
+	app.shader
+		.uniform4f("triangleColor\0", [1.0, green, 0.0, 0.5]);
 
 	BindVertexArray(app.vao);
 	DrawArrays(TRIANGLES, 0, 3);
@@ -271,5 +269,27 @@ unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> Shader {
 impl Drop for Shader {
 	fn drop(&mut self) {
 		unsafe { DeleteProgram(self.0) }
+	}
+}
+
+impl Shader {
+	fn uniform4f(&self, name: &'static str, [a, b, c, d]: [f32; 4]) {
+		#[cfg(debug_assertions)]
+		{
+			if name.as_bytes()[name.len() - 1] != b'\0' {
+				eprintln!("Uniform name doesn't have null byte terminator");
+			}
+		}
+
+		unsafe {
+			let location = GetUniformLocation(self.0, name.as_ptr() as *const GLchar);
+			debug_assert!(
+				location != -1,
+				"Failed to get uniform location of \"{}\"",
+				name
+			);
+
+			Uniform4f(location, a, b, c, d);
+		}
 	}
 }
