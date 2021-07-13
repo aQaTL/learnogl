@@ -1,28 +1,28 @@
 use gl::{types::*, *};
-use glutin::{Api, GlProfile, GlRequest};
+use glutin::{Api, ContextWrapper, GlProfile, GlRequest, PossiblyCurrent};
 use std::os::raw::c_void;
 use std::str::from_utf8;
-use std::{
-	mem::{size_of, size_of_val},
-	ptr,
-};
-use winit::{Event, WindowEvent};
+use std::{mem::size_of_val, ptr};
+use winit::dpi::PhysicalSize;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{ControlFlow, EventLoop};
+use winit::window::{Window, WindowBuilder};
 
 #[deny(unsafe_code)]
 mod game;
-
-static mut RUNNING: bool = true;
 
 fn main() {
 	unsafe { main_() }
 }
 
+type WindowContext = ContextWrapper<PossiblyCurrent, Window>;
+
 unsafe fn main_() {
-	let mut event_loop = winit::EventsLoop::new();
+	let event_loop = EventLoop::new();
 
-	let wb = winit::WindowBuilder::new().with_dimensions((1280, 720).into());
+	let wb = WindowBuilder::new().with_inner_size(PhysicalSize::<u32>::from((1280_u32, 720_u32)));
 
-	let window_ctx = glutin::ContextBuilder::new()
+	let window_ctx: WindowContext = glutin::ContextBuilder::new()
 		.with_gl_profile(GlProfile::Core)
 		.with_gl(GlRequest::Specific(Api::OpenGl, (4, 3)))
 		.with_vsync(true)
@@ -81,38 +81,71 @@ void main()
 
 	Viewport(0, 0, 1280, 720);
 
-	while RUNNING {
-		event_loop.poll_events(|event: Event| match event {
-			Event::WindowEvent {
-				event: WindowEvent::CloseRequested,
-				..
-			} => RUNNING = false,
-			Event::WindowEvent {
-				event: WindowEvent::Resized(new_size),
-				..
-			} => {
-				let (width, height): (u32, u32) = new_size.into();
-				gl::Viewport(0, 0, width as i32, height as i32);
+	let app = App {
+		shader,
+		vao,
+		vbo,
+		window_ctx,
+	};
+
+	event_loop.run(
+		move |event: Event<'_, ()>, _ev_loop_window_target, control_flow| {
+			*control_flow = ControlFlow::Wait;
+
+			match event {
+				Event::WindowEvent {
+					event: WindowEvent::CloseRequested,
+					..
+				} => {
+					*control_flow = ControlFlow::Exit;
+				}
+				Event::WindowEvent {
+					event: WindowEvent::Resized(new_size),
+					..
+				} => {
+					let (width, height): (u32, u32) = new_size.into();
+					gl::Viewport(0, 0, width as i32, height as i32);
+				}
+				Event::MainEventsCleared => {
+					app.window_ctx.window().request_redraw();
+				}
+				Event::RedrawRequested(_) => {
+					redraw(&app);
+				}
+				_ => {}
 			}
-			_ => {}
-		});
+		},
+	);
+}
 
-		ClearColor(0.2, 0.3, 0.3, 1.0);
-		Clear(COLOR_BUFFER_BIT);
+struct App {
+	shader: Shader,
+	vao: u32,
+	vbo: u32,
+	window_ctx: WindowContext,
+}
 
-		// Render
-		shader.bind();
-		BindVertexArray(vao);
-		DrawArrays(TRIANGLES, 0, 3);
-
-		if let Err(err) = window_ctx.swap_buffers() {
-			println!("swap_buffers err: {:?}", err);
+impl Drop for App {
+	fn drop(&mut self) {
+		unsafe {
+			DeleteVertexArrays(1, &mut self.vao as *mut _);
+			DeleteBuffers(1, &mut self.vbo as *mut _);
 		}
 	}
+}
 
-	drop(shader);
-	DeleteVertexArrays(1, &mut vao as *mut _);
-	DeleteBuffers(1, &mut vbo as *mut _);
+unsafe fn redraw(app: &App) {
+	ClearColor(0.2, 0.3, 0.3, 1.0);
+	Clear(COLOR_BUFFER_BIT);
+
+	// Render
+	app.shader.bind();
+	BindVertexArray(app.vao);
+	DrawArrays(TRIANGLES, 0, 3);
+
+	if let Err(err) = app.window_ctx.swap_buffers() {
+		println!("swap_buffers err: {:?}", err);
+	}
 }
 
 extern "system" fn debug_msg_callback(
@@ -165,7 +198,7 @@ unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> Shader {
 				ptr::null_mut(),
 				info_log.as_mut_ptr() as *mut _,
 			);
-			panic!(format!(
+			panic!(
 				"[Shader compile]: Failed to compile {} shader: {}",
 				match s_type {
 					VERTEX_SHADER => "vertex",
@@ -173,7 +206,7 @@ unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> Shader {
 					_ => unimplemented!(),
 				},
 				from_utf8(&info_log).unwrap()
-			));
+			);
 		}
 		shader
 	};
