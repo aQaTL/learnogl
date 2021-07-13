@@ -2,9 +2,10 @@ use gl::{types::*, *};
 use glutin::{Api, ContextWrapper, GlProfile, GlRequest, PossiblyCurrent};
 use std::os::raw::c_void;
 use std::str::from_utf8;
+use std::time::Instant;
 use std::{mem::size_of_val, ptr};
 use winit::dpi::PhysicalSize;
-use winit::event::{Event, WindowEvent};
+use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
@@ -48,9 +49,11 @@ void main()
 	let fs = "#version 330 core
 out vec4 FragColor;
 
+uniform vec4 triangleColor;
+
 void main()
 {
-	FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+	FragColor = triangleColor;
 }
 \0";
 
@@ -81,11 +84,12 @@ void main()
 
 	Viewport(0, 0, 1280, 720);
 
-	let app = App {
+	let mut app = App {
 		shader,
 		vao,
 		vbo,
 		window_ctx,
+		start_time: Instant::now(),
 	};
 
 	event_loop.run(
@@ -109,8 +113,20 @@ void main()
 				Event::MainEventsCleared => {
 					app.window_ctx.window().request_redraw();
 				}
+				Event::DeviceEvent {
+					event:
+						DeviceEvent::Key(KeyboardInput {
+							state: ElementState::Pressed,
+							virtual_keycode: Some(VirtualKeyCode::Space),
+							..
+						}),
+					..
+				} => {
+					println!("pressed space");
+					app.window_ctx.window().request_redraw();
+				}
 				Event::RedrawRequested(_) => {
-					redraw(&app);
+					redraw(&mut app);
 				}
 				_ => {}
 			}
@@ -123,6 +139,8 @@ struct App {
 	vao: u32,
 	vbo: u32,
 	window_ctx: WindowContext,
+
+	start_time: Instant,
 }
 
 impl Drop for App {
@@ -134,12 +152,22 @@ impl Drop for App {
 	}
 }
 
-unsafe fn redraw(app: &App) {
+unsafe fn redraw(app: &mut App) {
 	ClearColor(0.2, 0.3, 0.3, 1.0);
 	Clear(COLOR_BUFFER_BIT);
 
+	let elapsed_millis = app.start_time.elapsed().as_micros();
+	let green = (elapsed_millis as f32).sin() / 2.0 + 0.5;
+	dbg!(green);
+
+	let vertex_color_location =
+		GetUniformLocation(app.shader.0, "triangleColor\0".as_ptr() as *const GLchar);
+
 	// Render
 	app.shader.bind();
+
+	Uniform4f(vertex_color_location, 1.0, green, 0.0, 0.5);
+
 	BindVertexArray(app.vao);
 	DrawArrays(TRIANGLES, 0, 3);
 
