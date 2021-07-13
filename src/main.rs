@@ -154,7 +154,7 @@ extern "system" fn debug_msg_callback(
 	_id: u32,
 	severity: u32,
 	length: i32,
-	message: *const i8,
+	message: *const GLchar,
 	user_param: *mut c_void,
 ) {
 	let (_param, msg) = unsafe {
@@ -184,7 +184,7 @@ unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> Shader {
 		ShaderSource(
 			shader,
 			1,
-			&(source.as_ptr() as *const i8) as *const _,
+			&(source.as_ptr() as *const GLchar) as *const *const GLchar,
 			&(source.len() as i32),
 		);
 		CompileShader(shader);
