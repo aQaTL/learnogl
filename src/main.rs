@@ -57,7 +57,7 @@ void main()
 }
 \0";
 
-	let shader = new_shader(vs, fs);
+	let shader = Shader::new(vs, fs);
 
 	let vertices: [f32; 9] = [-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0];
 
@@ -273,6 +273,10 @@ impl Drop for Shader {
 }
 
 impl Shader {
+	fn new(vertex_source: &str, fragment_source: &str) -> Self {
+		unsafe { new_shader(vertex_source, fragment_source) }
+	}
+
 	fn uniform4f(&self, name: &'static str, [a, b, c, d]: [f32; 4]) {
 		#[cfg(debug_assertions)]
 		{
