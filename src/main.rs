@@ -8,15 +8,14 @@ use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCo
 use winit::event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget};
 use winit::window::{Window, WindowBuilder};
 
-use std::mem::size_of_val;
 use std::os::raw::c_void;
-use std::ptr;
 use std::time::Instant;
 
 use crate::shader::Shader;
+use glbuffer::{Vao, VertexAttrib, VertexLayout};
 
-#[deny(unsafe_code)]
 mod game;
+mod glbuffer;
 mod shader;
 
 fn main() {
@@ -55,7 +54,10 @@ unsafe fn main_() {
 	let mut app = App {
 		shader,
 		window_ctx,
+
 		start_time: Instant::now(),
+
+		polygon_mode: false,
 	};
 
 	event_loop.run(move |event: Event<()>, window_target, control_flow| {
@@ -68,6 +70,8 @@ struct App {
 	window_ctx: WindowContext,
 
 	start_time: Instant,
+
+	polygon_mode: bool,
 }
 
 impl App {
@@ -106,15 +110,41 @@ impl App {
 				..
 			} => {
 				println!("pressed space");
-				self.window_ctx.window().request_redraw();
+				self.redraw();
 			}
 			Event::RedrawRequested(_) => {
 				self.render();
 			}
+			Event::DeviceEvent {
+				event:
+					DeviceEvent::Key(KeyboardInput {
+						state: ElementState::Pressed,
+						virtual_keycode: Some(VirtualKeyCode::F9),
+						..
+					}),
+				..
+			} => {
+				self.polygon_mode = !self.polygon_mode;
+				if self.polygon_mode {
+					unsafe {
+						gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+					}
+				} else {
+					unsafe {
+						gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+					}
+				}
+				self.redraw();
+			}
+
 			_ => {}
 		}
 
 		ControlFlow::Wait
+	}
+
+	fn redraw(&self) {
+		self.window_ctx.window().request_redraw();
 	}
 
 	/// Update app state. Timers, positions, etc.
@@ -122,6 +152,20 @@ impl App {
 
 	fn render(&mut self) {
 		unsafe { render(self) }
+	}
+}
+
+#[repr(C)]
+struct TriangleVertex {
+	position: Vec3,
+}
+
+#[repr(C)]
+struct Vec3(f32, f32, f32);
+
+impl VertexLayout<1> for TriangleVertex {
+	fn layout() -> [VertexAttrib; 1] {
+		[VertexAttrib::new::<f32>(3)]
 	}
 }
 
@@ -139,34 +183,22 @@ unsafe fn render(app: &mut App) {
 	app.shader
 		.uniform4f("triangleColor\0", [1.0, green, 0.0, 0.5]);
 
-	let vertices: [f32; 9] = [-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0];
+	let vertices = [
+		TriangleVertex {
+			position: Vec3(-0.5, -0.5, 0.0),
+		},
+		TriangleVertex {
+			position: Vec3(0.5, -0.5, 0.0),
+		},
+		TriangleVertex {
+			position: Vec3(0.0, 0.5, 0.0),
+		},
+	];
 
-	let mut vao = 0u32;
-	gl::GenVertexArrays(1, &mut vao as *mut _);
-	gl::BindVertexArray(vao);
+	let vao = Vao::new_static(&vertices);
+	vao.bind();
 
-	let mut vbo: u32 = 0;
-	gl::GenBuffers(1, &mut vbo as *mut _);
-
-	gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-	gl::BufferData(
-		gl::ARRAY_BUFFER,
-		size_of_val(&vertices) as isize,
-		vertices.as_ptr() as *const _,
-		gl::STATIC_DRAW,
-	);
-
-	gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, 12, ptr::null());
-	gl::EnableVertexAttribArray(0);
-
-	gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-	gl::BindVertexArray(0);
-
-	gl::BindVertexArray(vao);
 	gl::DrawArrays(gl::TRIANGLES, 0, 3);
-
-	gl::DeleteVertexArrays(1, &mut vao as *mut _);
-	gl::DeleteBuffers(1, &mut vbo as *mut _);
 
 	if let Err(err) = app.window_ctx.swap_buffers() {
 		println!("swap_buffers err: {:?}", err);
