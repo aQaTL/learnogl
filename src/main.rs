@@ -1,13 +1,18 @@
-use gl::{types::*, *};
+extern crate glutin;
+extern crate winit;
+
+use gl::types::*;
 use glutin::{Api, ContextWrapper, GlProfile, GlRequest, PossiblyCurrent};
-use std::os::raw::c_void;
-use std::str::from_utf8;
-use std::time::Instant;
-use std::{mem::size_of_val, ptr};
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
+
+use std::ffi::{CStr, CString, NulError};
+use std::os::raw::c_void;
+use std::str::from_utf8;
+use std::time::Instant;
+use std::{mem::size_of_val, ptr};
 
 #[deny(unsafe_code)]
 mod game;
@@ -32,57 +37,41 @@ unsafe fn main_() {
 		.make_current()
 		.unwrap();
 
-	load_with(|s| window_ctx.get_proc_address(s) as *const _);
+	gl::load_with(|s| window_ctx.get_proc_address(s) as *const _);
 	gl::Viewport::load_with(|s| window_ctx.get_proc_address(s) as *const _);
 
-	DebugMessageCallback(Some(debug_msg_callback), std::ptr::null_mut());
+	gl::DebugMessageCallback(Some(debug_msg_callback), std::ptr::null_mut());
 
-	let vs = "#version 330 core
-layout (location = 0) in vec3 aPos;
-
-void main()
-{
-    gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-}
-";
-
-	let fs = "#version 330 core
-out vec4 FragColor;
-
-uniform vec4 triangleColor;
-
-void main()
-{
-	FragColor = triangleColor;
-}
-\0";
-
-	let shader = Shader::new(vs, fs);
+	let shader = Shader::new(
+		include_str!("shaders/vs.glsl"),
+		include_str!("shaders/fs.glsl"),
+	)
+	.unwrap();
 
 	let vertices: [f32; 9] = [-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0];
 
 	let mut vao = 0u32;
-	GenVertexArrays(1, &mut vao as *mut _);
-	BindVertexArray(vao);
+	gl::GenVertexArrays(1, &mut vao as *mut _);
+	gl::BindVertexArray(vao);
 
 	let mut vbo: u32 = 0;
-	GenBuffers(1, &mut vbo as *mut _);
+	gl::GenBuffers(1, &mut vbo as *mut _);
 
-	BindBuffer(ARRAY_BUFFER, vbo);
-	BufferData(
-		ARRAY_BUFFER,
+	gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+	gl::BufferData(
+		gl::ARRAY_BUFFER,
 		size_of_val(&vertices) as isize,
 		vertices.as_ptr() as *const _,
-		STATIC_DRAW,
+		gl::STATIC_DRAW,
 	);
 
-	VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, 12, ptr::null());
-	EnableVertexAttribArray(0);
+	gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, 12, ptr::null());
+	gl::EnableVertexAttribArray(0);
 
-	BindBuffer(ARRAY_BUFFER, 0);
-	BindVertexArray(0);
+	gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+	gl::BindVertexArray(0);
 
-	Viewport(0, 0, 1280, 720);
+	gl::Viewport(0, 0, 1280, 720);
 
 	let mut app = App {
 		shader,
@@ -111,7 +100,7 @@ void main()
 					gl::Viewport(0, 0, width as i32, height as i32);
 				}
 				Event::MainEventsCleared => {
-					app.window_ctx.window().request_redraw();
+					// app.window_ctx.window().request_redraw();
 				}
 				Event::DeviceEvent {
 					event:
@@ -146,15 +135,15 @@ struct App {
 impl Drop for App {
 	fn drop(&mut self) {
 		unsafe {
-			DeleteVertexArrays(1, &mut self.vao as *mut _);
-			DeleteBuffers(1, &mut self.vbo as *mut _);
+			gl::DeleteVertexArrays(1, &mut self.vao as *mut _);
+			gl::DeleteBuffers(1, &mut self.vbo as *mut _);
 		}
 	}
 }
 
 unsafe fn redraw(app: &mut App) {
-	ClearColor(0.2, 0.3, 0.3, 1.0);
-	Clear(COLOR_BUFFER_BIT);
+	gl::ClearColor(0.2, 0.3, 0.3, 1.0);
+	gl::Clear(gl::COLOR_BUFFER_BIT);
 
 	let elapsed_millis = app.start_time.elapsed().as_micros();
 	let green = (elapsed_millis as f32).sin() / 2.0 + 0.5;
@@ -166,8 +155,8 @@ unsafe fn redraw(app: &mut App) {
 	app.shader
 		.uniform4f("triangleColor\0", [1.0, green, 0.0, 0.5]);
 
-	BindVertexArray(app.vao);
-	DrawArrays(TRIANGLES, 0, 3);
+	gl::BindVertexArray(app.vao);
+	gl::DrawArrays(gl::TRIANGLES, 0, 3);
 
 	if let Err(err) = app.window_ctx.swap_buffers() {
 		println!("swap_buffers err: {:?}", err);
@@ -199,26 +188,26 @@ struct Shader(pub(crate) u32);
 impl Shader {
 	fn bind(&self) {
 		unsafe {
-			UseProgram(self.0);
+			gl::UseProgram(self.0);
 		}
 	}
 }
 
-unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> u32 {
-	let compile_shader = |source: &str, s_type| {
-		let shader = CreateShader(s_type);
-		ShaderSource(
+unsafe fn new_shader(vertex_source: &CStr, fragment_source: &CStr) -> u32 {
+	let compile_shader = |source: &CStr, s_type| {
+		let shader = gl::CreateShader(s_type);
+		gl::ShaderSource(
 			shader,
 			1,
 			&(source.as_ptr() as *const GLchar) as *const *const GLchar,
-			&(source.len() as i32),
+			&(source.to_bytes_with_nul().len() as i32),
 		);
-		CompileShader(shader);
+		gl::CompileShader(shader);
 
 		let (mut success, mut info_log) = (false, [0u8; 512]);
-		GetShaderiv(shader, COMPILE_STATUS, &mut success as *mut _ as *mut _);
+		gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success as *mut _ as *mut _);
 		if !success {
-			GetShaderInfoLog(
+			gl::GetShaderInfoLog(
 				shader,
 				512,
 				ptr::null_mut(),
@@ -227,8 +216,8 @@ unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> u32 {
 			panic!(
 				"[Shader compile]: Failed to compile {} shader: {}",
 				match s_type {
-					VERTEX_SHADER => "vertex",
-					FRAGMENT_SHADER => "fragment",
+					gl::VERTEX_SHADER => "vertex",
+					gl::FRAGMENT_SHADER => "fragment",
 					_ => unimplemented!(),
 				},
 				from_utf8(&info_log).unwrap()
@@ -237,18 +226,18 @@ unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> u32 {
 		shader
 	};
 
-	let vertex_shader = compile_shader(vertex_source, VERTEX_SHADER);
-	let fragment_shader = compile_shader(fragment_source, FRAGMENT_SHADER);
+	let vertex_shader = compile_shader(vertex_source, gl::VERTEX_SHADER);
+	let fragment_shader = compile_shader(fragment_source, gl::FRAGMENT_SHADER);
 
-	let shader = CreateProgram();
-	AttachShader(shader, vertex_shader);
-	AttachShader(shader, fragment_shader);
-	LinkProgram(shader);
+	let shader = gl::CreateProgram();
+	gl::AttachShader(shader, vertex_shader);
+	gl::AttachShader(shader, fragment_shader);
+	gl::LinkProgram(shader);
 
 	let (mut success, mut info_log) = (false, [0u8; 512]);
-	GetProgramiv(shader, LINK_STATUS, &mut success as *mut _ as *mut _);
+	gl::GetProgramiv(shader, gl::LINK_STATUS, &mut success as *mut _ as *mut _);
 	if !success {
-		GetProgramInfoLog(
+		gl::GetProgramInfoLog(
 			shader,
 			512,
 			ptr::null_mut(),
@@ -260,21 +249,32 @@ unsafe fn new_shader(vertex_source: &str, fragment_source: &str) -> u32 {
 		);
 	}
 
-	DeleteShader(vertex_shader);
-	DeleteShader(fragment_shader);
+	gl::DeleteShader(vertex_shader);
+	gl::DeleteShader(fragment_shader);
 
 	shader
 }
 
 impl Drop for Shader {
 	fn drop(&mut self) {
-		unsafe { DeleteProgram(self.0) }
+		unsafe { gl::DeleteProgram(self.0) }
 	}
 }
 
+#[derive(Debug)]
+enum ShaderError {
+	ProvidedStringContainsNullByte(NulError),
+}
+
 impl Shader {
-	fn new(vertex_source: &str, fragment_source: &str) -> Self {
-		Shader(unsafe { new_shader(vertex_source, fragment_source) })
+	fn new(vertex_source: &str, fragment_source: &str) -> Result<Self, ShaderError> {
+		let vertex_source =
+			CString::new(vertex_source).map_err(ShaderError::ProvidedStringContainsNullByte)?;
+		let fragment_source =
+			CString::new(fragment_source).map_err(ShaderError::ProvidedStringContainsNullByte)?;
+		Ok(Shader(unsafe {
+			new_shader(&vertex_source, &fragment_source)
+		}))
 	}
 
 	fn uniform4f(&self, name: &'static str, [a, b, c, d]: [f32; 4]) {
@@ -286,14 +286,14 @@ impl Shader {
 		}
 
 		unsafe {
-			let location = GetUniformLocation(self.0, name.as_ptr() as *const GLchar);
+			let location = gl::GetUniformLocation(self.0, name.as_ptr() as *const GLchar);
 			debug_assert!(
 				location != -1,
 				"Failed to get uniform location of \"{}\"",
 				name
 			);
 
-			Uniform4f(location, a, b, c, d);
+			gl::Uniform4f(location, a, b, c, d);
 		}
 	}
 }
