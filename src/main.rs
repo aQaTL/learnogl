@@ -5,17 +5,19 @@ use gl::types::*;
 use glutin::{Api, ContextWrapper, GlProfile, GlRequest, PossiblyCurrent};
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget};
 use winit::window::{Window, WindowBuilder};
 
-use std::ffi::{CStr, CString, NulError};
+use std::mem::size_of_val;
 use std::os::raw::c_void;
-use std::str::from_utf8;
+use std::ptr;
 use std::time::Instant;
-use std::{mem::size_of_val, ptr};
+
+use crate::shader::Shader;
 
 #[deny(unsafe_code)]
 mod game;
+mod shader;
 
 fn main() {
 	unsafe { main_() }
@@ -81,46 +83,9 @@ unsafe fn main_() {
 		start_time: Instant::now(),
 	};
 
-	event_loop.run(
-		move |event: Event<'_, ()>, _ev_loop_window_target, control_flow| {
-			*control_flow = ControlFlow::Wait;
-
-			match event {
-				Event::WindowEvent {
-					event: WindowEvent::CloseRequested,
-					..
-				} => {
-					*control_flow = ControlFlow::Exit;
-				}
-				Event::WindowEvent {
-					event: WindowEvent::Resized(new_size),
-					..
-				} => {
-					let (width, height): (u32, u32) = new_size.into();
-					gl::Viewport(0, 0, width as i32, height as i32);
-				}
-				Event::MainEventsCleared => {
-					// app.window_ctx.window().request_redraw();
-				}
-				Event::DeviceEvent {
-					event:
-						DeviceEvent::Key(KeyboardInput {
-							state: ElementState::Pressed,
-							virtual_keycode: Some(VirtualKeyCode::Space),
-							..
-						}),
-					..
-				} => {
-					println!("pressed space");
-					app.window_ctx.window().request_redraw();
-				}
-				Event::RedrawRequested(_) => {
-					redraw(&mut app);
-				}
-				_ => {}
-			}
-		},
-	);
+	event_loop.run(move |event: Event<()>, window_target, control_flow| {
+		*control_flow = app.process_events(event, window_target);
+	});
 }
 
 struct App {
@@ -138,6 +103,57 @@ impl Drop for App {
 			gl::DeleteVertexArrays(1, &mut self.vao as *mut _);
 			gl::DeleteBuffers(1, &mut self.vbo as *mut _);
 		}
+	}
+}
+
+impl App {
+	fn process_events(
+		&mut self,
+		event: Event<()>,
+		_window: &EventLoopWindowTarget<()>,
+	) -> ControlFlow {
+		match event {
+			Event::WindowEvent {
+				event: WindowEvent::CloseRequested,
+				..
+			} => {
+				return ControlFlow::Exit;
+			}
+			Event::WindowEvent {
+				event: WindowEvent::Resized(new_size),
+				..
+			} => {
+				let (width, height): (u32, u32) = new_size.into();
+				unsafe {
+					gl::Viewport(0, 0, width as i32, height as i32);
+				}
+			}
+			Event::MainEventsCleared => {
+				// app.window_ctx.window().request_redraw();
+			}
+			Event::DeviceEvent {
+				event:
+					DeviceEvent::Key(KeyboardInput {
+						state: ElementState::Pressed,
+						virtual_keycode: Some(VirtualKeyCode::Space),
+						..
+					}),
+				..
+			} => {
+				println!("pressed space");
+				self.window_ctx.window().request_redraw();
+			}
+			Event::RedrawRequested(_) => {
+				self.redraw();
+			}
+			_ => {}
+		}
+
+		ControlFlow::Wait
+	}
+
+	fn redraw(&mut self) {
+		unsafe { redraw(self) }
 	}
 }
 
@@ -181,119 +197,4 @@ extern "system" fn debug_msg_callback(
 		(_param, msg)
 	};
 	println!("[DEBUG ({})]: {}", severity, msg);
-}
-
-struct Shader(pub(crate) u32);
-
-impl Shader {
-	fn bind(&self) {
-		unsafe {
-			gl::UseProgram(self.0);
-		}
-	}
-}
-
-unsafe fn new_shader(vertex_source: &CStr, fragment_source: &CStr) -> u32 {
-	let compile_shader = |source: &CStr, s_type| {
-		let shader = gl::CreateShader(s_type);
-		gl::ShaderSource(
-			shader,
-			1,
-			&(source.as_ptr() as *const GLchar) as *const *const GLchar,
-			&(source.to_bytes_with_nul().len() as i32),
-		);
-		gl::CompileShader(shader);
-
-		let (mut success, mut info_log) = (false, [0u8; 512]);
-		gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success as *mut _ as *mut _);
-		if !success {
-			gl::GetShaderInfoLog(
-				shader,
-				512,
-				ptr::null_mut(),
-				info_log.as_mut_ptr() as *mut _,
-			);
-			panic!(
-				"[Shader compile]: Failed to compile {} shader: {}",
-				match s_type {
-					gl::VERTEX_SHADER => "vertex",
-					gl::FRAGMENT_SHADER => "fragment",
-					_ => unimplemented!(),
-				},
-				from_utf8(&info_log).unwrap()
-			);
-		}
-		shader
-	};
-
-	let vertex_shader = compile_shader(vertex_source, gl::VERTEX_SHADER);
-	let fragment_shader = compile_shader(fragment_source, gl::FRAGMENT_SHADER);
-
-	let shader = gl::CreateProgram();
-	gl::AttachShader(shader, vertex_shader);
-	gl::AttachShader(shader, fragment_shader);
-	gl::LinkProgram(shader);
-
-	let (mut success, mut info_log) = (false, [0u8; 512]);
-	gl::GetProgramiv(shader, gl::LINK_STATUS, &mut success as *mut _ as *mut _);
-	if !success {
-		gl::GetProgramInfoLog(
-			shader,
-			512,
-			ptr::null_mut(),
-			info_log.as_mut_ptr() as *mut _,
-		);
-		println!(
-			"ERROR::SHADER::PROGRAM::LINKING_FAILED: {}",
-			from_utf8(&info_log).unwrap()
-		);
-	}
-
-	gl::DeleteShader(vertex_shader);
-	gl::DeleteShader(fragment_shader);
-
-	shader
-}
-
-impl Drop for Shader {
-	fn drop(&mut self) {
-		unsafe { gl::DeleteProgram(self.0) }
-	}
-}
-
-#[derive(Debug)]
-enum ShaderError {
-	ProvidedStringContainsNullByte(NulError),
-}
-
-impl Shader {
-	fn new(vertex_source: &str, fragment_source: &str) -> Result<Self, ShaderError> {
-		let vertex_source =
-			CString::new(vertex_source).map_err(ShaderError::ProvidedStringContainsNullByte)?;
-		let fragment_source =
-			CString::new(fragment_source).map_err(ShaderError::ProvidedStringContainsNullByte)?;
-		Ok(Shader(unsafe {
-			new_shader(&vertex_source, &fragment_source)
-		}))
-	}
-
-	fn uniform4f(&self, name: &'static str, [a, b, c, d]: [f32; 4]) {
-		#[cfg(debug_assertions)]
-		{
-			if name.as_bytes()[name.len() - 1] != b'\0' {
-				eprintln!("Uniform name doesn't have null byte terminator");
-			}
-		}
-
-		unsafe {
-			let location = gl::GetUniformLocation(self.0, name.as_ptr() as *const GLchar);
-			debug_assert!(
-				location != -1,
-				"Failed to get uniform location of \"{}\"",
-				name
-			);
-
-			gl::Uniform4f(location, a, b, c, d);
-		}
-	}
 }
