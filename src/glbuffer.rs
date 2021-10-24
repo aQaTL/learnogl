@@ -1,5 +1,5 @@
 use std::ffi::c_void;
-use std::{mem, ptr};
+use std::mem;
 
 #[repr(transparent)]
 pub struct Vao(u32);
@@ -12,6 +12,17 @@ impl Vao {
 
 		let buffer = Buffer::new(data, BufferType::ArrayBuffer, BufferUsage::StaticDraw);
 
+		let layout = T::layout();
+		let stride = layout
+			.iter()
+			.map(
+				|VertexAttrib {
+				     count, type_size, ..
+				 }| *count * *type_size,
+			)
+			.sum();
+
+		let mut offset = 0;
 		for (
 			idx,
 			VertexAttrib {
@@ -24,14 +35,15 @@ impl Vao {
 			unsafe {
 				gl::VertexAttribPointer(
 					idx as u32,
-					count as i32,
+					count,
 					type_ as u32,
 					gl::FALSE,
-					count as i32 * type_size,
-					ptr::null(),
+					stride,
+					std::mem::transmute(offset as isize),
 				);
 				gl::EnableVertexAttribArray(idx as u32);
 			}
+			offset += count * type_size;
 		}
 
 		unsafe { Vao::unbind() };
@@ -131,13 +143,13 @@ pub trait VertexLayout<const N: usize> {
 }
 
 pub struct VertexAttrib {
-	count: u32,
+	count: i32,
 	type_: AttribType,
 	type_size: i32,
 }
 
 impl VertexAttrib {
-	pub fn new<T: IntoAttribType>(count: u32) -> Self {
+	pub fn new<T: IntoAttribType>(count: i32) -> Self {
 		VertexAttrib {
 			count,
 			type_: T::into_attrib_type(),

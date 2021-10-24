@@ -158,14 +158,15 @@ impl App {
 #[repr(C)]
 struct TriangleVertex {
 	position: Vec3,
+	color: Vec3,
 }
 
 #[repr(C)]
 struct Vec3(f32, f32, f32);
 
-impl VertexLayout<1> for TriangleVertex {
-	fn layout() -> [VertexAttrib; 1] {
-		[VertexAttrib::new::<f32>(3)]
+impl VertexLayout<2> for TriangleVertex {
+	fn layout() -> [VertexAttrib; 2] {
+		[VertexAttrib::new::<f32>(3), VertexAttrib::new::<f32>(3)]
 	}
 }
 
@@ -180,18 +181,21 @@ unsafe fn render(app: &mut App) {
 	// Render
 	app.shader.bind();
 
-	app.shader
-		.uniform4f("triangleColor\0", [1.0, green, 0.0, 0.5]);
+	// app.shader
+	// 	.uniform4f("triangleColor\0", [1.0, green, 0.0, 0.5]);
 
 	let vertices = [
 		TriangleVertex {
 			position: Vec3(-0.5, -0.5, 0.0),
+			color: Vec3(1.0, 0.0, 0.0),
 		},
 		TriangleVertex {
 			position: Vec3(0.5, -0.5, 0.0),
+			color: Vec3(0.0, 1.0, 0.0),
 		},
 		TriangleVertex {
 			position: Vec3(0.0, 0.5, 0.0),
+			color: Vec3(0.0, 0.0, 1.0),
 		},
 	];
 
