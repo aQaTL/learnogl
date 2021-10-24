@@ -30,7 +30,7 @@ impl Vao {
 				type_,
 				type_size,
 			},
-		) in T::layout().into_iter().enumerate()
+		) in layout.into_iter().enumerate()
 		{
 			unsafe {
 				gl::VertexAttribPointer(
