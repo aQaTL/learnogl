@@ -33,7 +33,7 @@ unsafe fn main_() {
 	let window_ctx: WindowContext = glutin::ContextBuilder::new()
 		.with_gl_profile(GlProfile::Core)
 		.with_gl(GlRequest::Specific(Api::OpenGl, (4, 3)))
-		.with_vsync(true)
+		.with_vsync(false)
 		.build_windowed(wb, &event_loop)
 		.expect("Failed to initialise OpenGL")
 		.make_current()
@@ -50,35 +50,10 @@ unsafe fn main_() {
 	)
 	.unwrap();
 
-	let vertices: [f32; 9] = [-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0];
-
-	let mut vao = 0u32;
-	gl::GenVertexArrays(1, &mut vao as *mut _);
-	gl::BindVertexArray(vao);
-
-	let mut vbo: u32 = 0;
-	gl::GenBuffers(1, &mut vbo as *mut _);
-
-	gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-	gl::BufferData(
-		gl::ARRAY_BUFFER,
-		size_of_val(&vertices) as isize,
-		vertices.as_ptr() as *const _,
-		gl::STATIC_DRAW,
-	);
-
-	gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, 12, ptr::null());
-	gl::EnableVertexAttribArray(0);
-
-	gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-	gl::BindVertexArray(0);
-
 	gl::Viewport(0, 0, 1280, 720);
 
 	let mut app = App {
 		shader,
-		vao,
-		vbo,
 		window_ctx,
 		start_time: Instant::now(),
 	};
@@ -90,20 +65,9 @@ unsafe fn main_() {
 
 struct App {
 	shader: Shader,
-	vao: u32,
-	vbo: u32,
 	window_ctx: WindowContext,
 
 	start_time: Instant,
-}
-
-impl Drop for App {
-	fn drop(&mut self) {
-		unsafe {
-			gl::DeleteVertexArrays(1, &mut self.vao as *mut _);
-			gl::DeleteBuffers(1, &mut self.vbo as *mut _);
-		}
-	}
 }
 
 impl App {
@@ -129,7 +93,8 @@ impl App {
 				}
 			}
 			Event::MainEventsCleared => {
-				// app.window_ctx.window().request_redraw();
+				self.update();
+				// self.window_ctx.window().request_redraw();
 			}
 			Event::DeviceEvent {
 				event:
@@ -144,7 +109,7 @@ impl App {
 				self.window_ctx.window().request_redraw();
 			}
 			Event::RedrawRequested(_) => {
-				self.redraw();
+				self.render();
 			}
 			_ => {}
 		}
@@ -152,12 +117,15 @@ impl App {
 		ControlFlow::Wait
 	}
 
-	fn redraw(&mut self) {
-		unsafe { redraw(self) }
+	/// Update app state. Timers, positions, etc.
+	fn update(&mut self) {}
+
+	fn render(&mut self) {
+		unsafe { render(self) }
 	}
 }
 
-unsafe fn redraw(app: &mut App) {
+unsafe fn render(app: &mut App) {
 	gl::ClearColor(0.2, 0.3, 0.3, 1.0);
 	gl::Clear(gl::COLOR_BUFFER_BIT);
 
@@ -171,8 +139,34 @@ unsafe fn redraw(app: &mut App) {
 	app.shader
 		.uniform4f("triangleColor\0", [1.0, green, 0.0, 0.5]);
 
-	gl::BindVertexArray(app.vao);
+	let vertices: [f32; 9] = [-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0];
+
+	let mut vao = 0u32;
+	gl::GenVertexArrays(1, &mut vao as *mut _);
+	gl::BindVertexArray(vao);
+
+	let mut vbo: u32 = 0;
+	gl::GenBuffers(1, &mut vbo as *mut _);
+
+	gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+	gl::BufferData(
+		gl::ARRAY_BUFFER,
+		size_of_val(&vertices) as isize,
+		vertices.as_ptr() as *const _,
+		gl::STATIC_DRAW,
+	);
+
+	gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, 12, ptr::null());
+	gl::EnableVertexAttribArray(0);
+
+	gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+	gl::BindVertexArray(0);
+
+	gl::BindVertexArray(vao);
 	gl::DrawArrays(gl::TRIANGLES, 0, 3);
+
+	gl::DeleteVertexArrays(1, &mut vao as *mut _);
+	gl::DeleteBuffers(1, &mut vbo as *mut _);
 
 	if let Err(err) = app.window_ctx.swap_buffers() {
 		println!("swap_buffers err: {:?}", err);

@@ -54,8 +54,8 @@ impl Shader {
 }
 
 unsafe fn new_shader(vertex_source: &CStr, fragment_source: &CStr) -> Result<u32, ShaderError> {
-	let compile_shader = |source: &CStr, s_type| {
-		let shader = gl::CreateShader(s_type);
+	let compile_shader = |source: &CStr, shader_type| {
+		let shader = gl::CreateShader(shader_type);
 		gl::ShaderSource(
 			shader,
 			1,
@@ -68,7 +68,7 @@ unsafe fn new_shader(vertex_source: &CStr, fragment_source: &CStr) -> Result<u32
 		gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success as *mut _ as *mut _);
 		if !success {
 			let info_log = get_shader_info_log(shader);
-			match s_type {
+			match shader_type {
 				gl::VERTEX_SHADER => {
 					return Err(ShaderError::FailedToCompileVertexShader(info_log))
 				}
