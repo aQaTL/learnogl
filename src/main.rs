@@ -11,6 +11,7 @@ use winit::window::{Window, WindowBuilder};
 
 use std::os::raw::c_void;
 use std::time::Instant;
+use std::fmt;
 
 use crate::shader::Shader;
 use glbuffer::{Vao, VertexAttrib, VertexLayout};
@@ -43,10 +44,11 @@ unsafe fn main_() {
 	gl::Viewport::load_with(|s| window_ctx.get_proc_address(s) as *const _);
 
 	let gl_vendor = CStr::from_ptr(gl::GetString(gl::VENDOR).cast::<GLchar>());
-	let gl_version = CStr::from_ptr(gl::GetString(gl::VERSION).cast::<GLchar>());
+	let gl_version = GlVersion::get();
+	let gl_version_str = CStr::from_ptr(gl::GetString(gl::VERSION).cast::<GLchar>());
 	let gl_renderer = CStr::from_ptr(gl::GetString(gl::RENDERER).cast::<GLchar>());
 	eprintln!("OpenGL vendor: {:?}", gl_vendor);
-	eprintln!("OpenGL version: {:?}", gl_version);
+	eprintln!("OpenGL version: {} {:?}", gl_version, gl_version_str);
 	eprintln!("OpenGL renderer: {:?}", gl_renderer);
 
 	gl::DebugMessageCallback::load_with(|s| window_ctx.get_proc_address(s) as *const _);
@@ -241,4 +243,29 @@ extern "system" fn debug_msg_callback(
 		(_param, msg)
 	};
 	println!("[DEBUG ({})]: {}", severity, msg);
+}
+
+struct GlVersion {
+	major: i32,
+	minor: i32,
+}
+
+impl GlVersion {
+	fn get() -> Self {
+		let mut major = 0;
+		let mut minor = 0;
+		unsafe { gl::GetIntegerv(gl::MAJOR_VERSION, &mut major as *mut i32) };
+		unsafe { gl::GetIntegerv(gl::MAJOR_VERSION, &mut minor as *mut i32) };
+
+		GlVersion {
+			major,
+			minor
+		}
+	}
+}
+
+impl fmt::Display for GlVersion {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{}.{}", self.major, self.minor)
+	}
 }
