@@ -3,6 +3,7 @@ extern crate winit;
 
 use gl::types::*;
 use glutin::{Api, ContextWrapper, GlProfile, GlRequest, PossiblyCurrent};
+use std::ffi::CStr;
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget};
@@ -41,7 +42,20 @@ unsafe fn main_() {
 	gl::load_with(|s| window_ctx.get_proc_address(s) as *const _);
 	gl::Viewport::load_with(|s| window_ctx.get_proc_address(s) as *const _);
 
-	gl::DebugMessageCallback(Some(debug_msg_callback), std::ptr::null_mut());
+	let gl_vendor = CStr::from_ptr(gl::GetString(gl::VENDOR).cast::<GLchar>());
+	let gl_version = CStr::from_ptr(gl::GetString(gl::VERSION).cast::<GLchar>());
+	let gl_renderer = CStr::from_ptr(gl::GetString(gl::RENDERER).cast::<GLchar>());
+	eprintln!("OpenGL vendor: {:?}", gl_vendor);
+	eprintln!("OpenGL version: {:?}", gl_version);
+	eprintln!("OpenGL renderer: {:?}", gl_renderer);
+
+	gl::DebugMessageCallback::load_with(|s| window_ctx.get_proc_address(s) as *const _);
+
+	if gl::DebugMessageCallback::is_loaded() {
+		gl::DebugMessageCallback(Some(debug_msg_callback), std::ptr::null_mut());
+	} else {
+		eprintln!("Is DebugMessageCallback not loaded");
+	}
 
 	let shader = Shader::new(
 		include_str!("shaders/vs.glsl"),
